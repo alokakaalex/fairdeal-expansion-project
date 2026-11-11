@@ -5,7 +5,7 @@ import { redirect } from "next/navigation";
 import { ROLE_INFO } from "@/lib/expansion/roles";
 import { config } from "@/lib/server/config";
 import { DEMO_PASSWORD, DEMO_USERS } from "@/lib/server/demo";
-import { endSession, requireUser, sessionUserAnyStatus, startSession } from "@/lib/server/session";
+import { addressCheck, endSession, requireUser, sessionUserAnyStatus, startSession } from "@/lib/server/session";
 import { confirmLink, googleSignInUrl, LINK_TYPES, type LinkType } from "@/lib/server/supabaseAuth";
 import { authenticate, changePassword, finishPasswordSetup, redeemToken, requestEmailLink, UserError } from "@/lib/server/users";
 
@@ -100,7 +100,12 @@ export async function signInWithGoogle() {
  * signs the person in, then sends them on.
  */
 export async function redeemEmailLink(_: FormState, formData: FormData): Promise<FormState> {
-  if (config.authProvider !== "supabase") redirect("/login");
+  if (config.authProvider !== "supabase") {
+    const where = await addressCheck();
+    return {
+      error: `This copy of the portal (${where.here || "this address"}) isn't connected to Supabase sign-in, so the link can't be used here. Open the link at ${where.expected}, or add the Supabase settings to this Vercel project and redeploy.`,
+    };
+  }
   const type = field(formData, "type") as LinkType;
   const tokenHash = field(formData, "token_hash");
   if (!LINK_TYPES.includes(type) || !tokenHash) return { error: "This link is incomplete. Open it again from the email." };
@@ -118,7 +123,7 @@ export async function redeemEmailLink(_: FormState, formData: FormData): Promise
 /** /auth/set-password (Supabase): choose a password after an invite or reset link. */
 export async function setPasswordAfterLink(_: FormState, formData: FormData): Promise<FormState> {
   const user = await sessionUserAnyStatus();
-  if (!user) redirect("/login");
+  if (!user) return { error: "Your session from the link has ended before the password was saved. Ask your access manager for a new link and use it straight away." };
   const password = field(formData, "password");
   if (password !== field(formData, "confirm")) return { error: "Passwords don't match." };
   let portal: string;

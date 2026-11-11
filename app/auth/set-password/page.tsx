@@ -1,9 +1,10 @@
 import type { Metadata } from "next";
-import { redirect } from "next/navigation";
+import Link from "next/link";
 import { NewPasswordForm } from "@/components/portal/AuthForms";
 import AuthFrame from "@/components/portal/AuthFrame";
+import { Alert } from "@/components/portal/ui";
 import { ROLE_INFO } from "@/lib/expansion/roles";
-import { sessionUserAnyStatus } from "@/lib/server/session";
+import { addressCheck, sessionUserAnyStatus } from "@/lib/server/session";
 
 export const metadata: Metadata = { title: "Choose your password" };
 
@@ -11,7 +12,33 @@ export const metadata: Metadata = { title: "Choose your password" };
 // signed the person in. They choose a password here.
 export default async function SetPasswordPage() {
   const user = await sessionUserAnyStatus();
-  if (!user) redirect("/login");
+  if (!user) {
+    // Say why, instead of silently showing the sign-in page.
+    const where = await addressCheck();
+    return (
+      <AuthFrame>
+        <div className="w-full max-w-sm space-y-4">
+          <h2 className="text-2xl font-semibold text-navy-950">Your link didn&apos;t sign you in</h2>
+          <Alert tone="error">
+            {where.ok ? (
+              <>
+                The session from your invite or reset link wasn&apos;t found in this browser. Open the link again in the same browser (not an app&apos;s
+                built-in browser, and not a private window that has since been closed), or ask your access manager for a new link.
+              </>
+            ) : (
+              <>
+                You&apos;re on <strong>{where.here}</strong>, but the portal&apos;s address is set to <strong>{where.expected}</strong>. Ask your access
+                manager to send a new link and open it at {where.expected}, or to set APP_URL to https://{where.here} in Vercel and redeploy.
+              </>
+            )}
+          </Alert>
+          <Link href="/login" className="text-sm font-semibold text-brand-600 underline-offset-4 hover:underline">
+            Go to sign in
+          </Link>
+        </div>
+      </AuthFrame>
+    );
+  }
   const invited = user.status === "invited";
 
   return (

@@ -1,6 +1,6 @@
 import "server-only";
 import { createHmac, timingSafeEqual } from "node:crypto";
-import { cookies } from "next/headers";
+import { cookies, headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { connection } from "next/server";
 import { cache } from "react";
@@ -127,4 +127,17 @@ export async function sessionUserAnyStatus(): Promise<User | null> {
   if (config.authProvider !== "supabase") return null;
   const row = await supabaseAuth.sessionRow<UserRow>();
   return row && row.status !== "disabled" ? toUser(row) : null;
+}
+
+/**
+ * Is this request on the address the portal is configured for (APP_URL)?
+ * Sign-in cookies belong to one address, and email links are built from
+ * APP_URL, so a mismatch (a second Vercel project, a preview link) breaks
+ * links in confusing ways. Used to explain that on the link pages.
+ */
+export async function addressCheck(): Promise<{ ok: boolean; here: string; expected: string }> {
+  const h = await headers();
+  const here = (h.get("x-forwarded-host") ?? h.get("host") ?? "").split(",")[0].trim().toLowerCase();
+  const expected = new URL(config.appUrl).host.toLowerCase();
+  return { ok: !here || here === expected, here, expected };
 }
