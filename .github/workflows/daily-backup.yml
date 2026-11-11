@@ -1,0 +1,21 @@
+# Free daily backup trigger that works on any host (Netlify, Vercel, Render):
+# GitHub calls the portal's backup endpoint once a day.
+# Repo → Settings → Secrets and variables → Actions → add:
+#   PORTAL_URL   e.g. https://fairdeal-expansion.netlify.app
+#   CRON_SECRET  the same value as the portal's CRON_SECRET setting
+name: Daily backup
+on:
+  schedule:
+    - cron: "30 20 * * *" # 02:00 IST
+  workflow_dispatch:
+jobs:
+  backup:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Trigger backup
+        env:
+          PORTAL_URL: ${{ secrets.PORTAL_URL }}
+          CRON_SECRET: ${{ secrets.CRON_SECRET }}
+        run: |
+          if [ -z "$PORTAL_URL" ] || [ -z "$CRON_SECRET" ]; then echo "PORTAL_URL / CRON_SECRET secrets not set yet; skipping."; exit 0; fi
+          curl -fsS --max-time 120 -H "Authorization: Bearer $CRON_SECRET" "$PORTAL_URL/api/cron/backup"

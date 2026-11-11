@@ -1,0 +1,7 @@
+// Starts the periodic database backup when the server boots.
+export async function register() {
+  if (process.env.NEXT_RUNTIME === "nodejs") {
+    const { startBackgroundJobs } = await import("./lib/server/backups");
+    startBackgroundJobs();
+  }
+}

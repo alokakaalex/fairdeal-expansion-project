@@ -1,0 +1,48 @@
+@import "tailwindcss";
+
+/* fairdeal.market in-house theme: the logo's slate navy (#3B3F5A) and sky blue (#5BC6F2). Light
+   theme only, so the brand reads the same on every screen; `dark:` classes
+   only apply under an explicit .dark ancestor (never set). */
+@custom-variant dark (&:where(.dark, .dark *));
+
+@theme {
+  --color-navy-50: #f5f6f9;
+  --color-navy-100: #eaebf1;
+  --color-navy-200: #d6d8e4;
+  --color-navy-300: #b6b9cf;
+  --color-navy-400: #9095b5;
+  --color-navy-500: #6d7398;
+  --color-navy-600: #575d80;
+  --color-navy-700: #474c6b;
+  --color-navy-800: #3b3f5a;
+  --color-navy-900: #303344;
+  --color-navy-950: #22243a;
+
+  --color-brand-50: #f0fafe;
+  --color-brand-100: #def4fd;
+  --color-brand-200: #b9e7fa;
+  --color-brand-300: #8ad6f6;
+  --color-brand-400: #5bc6f2;
+  --color-brand-500: #31aee6;
+  --color-brand-600: #1f8fc4;
+  --color-brand-700: #1b729c;
+
+  --font-sans: var(--font-inter), ui-sans-serif, system-ui, sans-serif;
+  --font-display: var(--font-poppins), var(--font-inter), ui-sans-serif, sans-serif;
+  --font-mono: var(--font-geist-mono), ui-monospace, monospace;
+}
+
+:root {
+  color-scheme: light;
+}
+
+body {
+  background: var(--color-slate-50);
+  color: var(--color-slate-900);
+}
+
+h1,
+h2,
+h3 {
+  font-family: var(--font-display);
+}

@@ -1,0 +1,57 @@
+# One-click deploy on Render: Dashboard → New → Blueprint → pick this repo.
+# Render asks for every value marked `sync: false` when you create it.
+services:
+  - type: web
+    name: expansion-portal
+    runtime: node
+    region: singapore
+    # A persistent disk needs a paid instance type.
+    plan: starter
+    buildCommand: npm ci && npm run build
+    startCommand: npm start
+    healthCheckPath: /api/health
+    autoDeploy: true
+    disk:
+      name: portal-data
+      mountPath: /var/data
+      sizeGB: 20
+    envVars:
+      - key: NODE_VERSION
+        value: 22.22.0
+      - key: NODE_OPTIONS
+        value: --disable-warning=ExperimentalWarning
+      - key: DATA_DIR
+        value: /var/data
+      - key: APP_URL
+        sync: false
+      # Managed Postgres (Render Postgres, Neon, Supabase…).
+      - key: DATABASE_URL
+        sync: false
+      - key: ADMIN_EMAIL
+        sync: false
+      - key: ADMIN_NAME
+        sync: false
+      - key: ADMIN_INITIAL_PASSWORD
+        sync: false
+      # Off-site copies of every file and backup (strongly recommended).
+      - key: S3_BUCKET
+        sync: false
+      - key: S3_REGION
+        sync: false
+      - key: S3_ENDPOINT
+        sync: false
+      - key: S3_ACCESS_KEY_ID
+        sync: false
+      - key: S3_SECRET_ACCESS_KEY
+        sync: false
+      # Email for invites, notifications and LOIs.
+      - key: SMTP_HOST
+        sync: false
+      - key: SMTP_PORT
+        sync: false
+      - key: SMTP_USER
+        sync: false
+      - key: SMTP_PASS
+        sync: false
+      - key: SMTP_FROM
+        sync: false

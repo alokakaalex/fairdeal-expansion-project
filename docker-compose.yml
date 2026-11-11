@@ -1,0 +1,13 @@
+# Run on any server with Docker:  docker compose up -d --build
+# Put it behind HTTPS (e.g. Caddy or nginx) and fill in .env first.
+services:
+  portal:
+    build: .
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    env_file: .env
+    volumes:
+      - portal-data:/data
+volumes:
+  portal-data:

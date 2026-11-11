@@ -1,0 +1,10 @@
+# Netlify (free plan allows commercial use). Netlify detects Next.js and
+# deploys it with its Next.js runtime. Set the environment variables listed
+# in README → Going live (DATABASE_URL, S3_*, APP_URL, ADMIN_*, CRON_SECRET).
+[build]
+  command = "npm run build"
+  publish = ".next"
+
+[build.environment]
+  NODE_VERSION = "22"
+  NODE_OPTIONS = "--disable-warning=ExperimentalWarning"
