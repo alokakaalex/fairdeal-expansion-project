@@ -138,6 +138,11 @@ export async function sessionUserAnyStatus(): Promise<User | null> {
 export async function addressCheck(): Promise<{ ok: boolean; here: string; expected: string }> {
   const h = await headers();
   const here = (h.get("x-forwarded-host") ?? h.get("host") ?? "").split(",")[0].trim().toLowerCase();
-  const expected = new URL(config.appUrl).host.toLowerCase();
+  let expected = config.appUrl;
+  try {
+    expected = new URL(config.appUrl).host.toLowerCase();
+  } catch {
+    // Unparseable APP_URL: compare the raw text (it will simply not match).
+  }
   return { ok: !here || here === expected, here, expected };
 }

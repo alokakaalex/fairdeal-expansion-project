@@ -23,3 +23,17 @@ describe("database connection options", () => {
     expect(describeDbError(new Error("Tenant or user not found"))).toMatch(/pooler/);
   });
 });
+
+describe("APP_URL", async () => {
+  const { normalizeAppUrl } = await import("./config");
+  it("accepts the address however it was typed", () => {
+    expect(normalizeAppUrl("fairdeal-expansion-project.vercel.app")).toBe("https://fairdeal-expansion-project.vercel.app");
+    expect(normalizeAppUrl(' "https://fairdeal-expansion-project.vercel.app/" ')).toBe("https://fairdeal-expansion-project.vercel.app");
+    expect(normalizeAppUrl("https://fairdeal-expansion-project.vercel.app/login")).toBe("https://fairdeal-expansion-project.vercel.app");
+    expect(normalizeAppUrl("localhost:3000")).toBe("http://localhost:3000");
+  });
+  it("falls back to Vercel's production address, then localhost", () => {
+    expect(normalizeAppUrl(undefined, "fairdeal-expansion-project.vercel.app")).toBe("https://fairdeal-expansion-project.vercel.app");
+    expect(normalizeAppUrl("", undefined)).toBe("http://localhost:3000");
+  });
+});

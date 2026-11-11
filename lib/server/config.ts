@@ -4,6 +4,25 @@ import path from "node:path";
 // All environment access for the portal lives here. See README for the
 // full list and what each one controls.
 
+/**
+ * The portal's public address, as "https://host" with no trailing slash,
+ * whatever was typed: surrounding spaces or quotes, no "https://", a
+ * trailing slash or path. Without APP_URL, Vercel's production address is
+ * used, then localhost.
+ */
+export function normalizeAppUrl(raw: string | undefined, vercelProductionHost?: string): string {
+  let value = (raw ?? "").trim().replace(/^(["'])(.*)\1$/, "$2").trim();
+  if (!value && vercelProductionHost) value = vercelProductionHost.trim();
+  if (!value) return "http://localhost:3000";
+  if (!/^https?:\/\//i.test(value)) value = `${/^(localhost|127\.0\.0\.1)(:|$)/.test(value) ? "http" : "https"}://${value}`;
+  try {
+    const u = new URL(value);
+    return `${u.protocol}//${u.host}`;
+  } catch {
+    return value.replace(/\/+$/, "");
+  }
+}
+
 function storageProvider(): "s3" | "supabase" | "local" {
   const wanted = process.env.STORAGE_PROVIDER;
   if (wanted === "s3" || wanted === "supabase" || wanted === "local") return wanted;
@@ -67,7 +86,7 @@ export const config = {
   /** Embedded Postgres (PGlite) folder when there's no DATABASE_URL; ":memory:" for tests. */
   databasePath: process.env.DATABASE_PATH || path.join(dataDir, "pgdata"),
   uploadsDir: path.join(dataDir, "uploads"),
-  appUrl: (process.env.APP_URL || "http://localhost:3000").replace(/\/+$/, ""),
+  appUrl: normalizeAppUrl(process.env.APP_URL, process.env.VERCEL_PROJECT_PRODUCTION_URL),
   secureCookies: process.env.NODE_ENV === "production" && !process.env.INSECURE_COOKIES,
 
   bootstrapAdmin: {
