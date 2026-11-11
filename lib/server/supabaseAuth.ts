@@ -54,7 +54,14 @@ export async function emailLink(row: AuthRow, purpose: LinkPurpose): Promise<str
 export async function passwordSignIn(row: AuthRow, password: string): Promise<boolean> {
   const sb = await authClient();
   let { data, error } = await sb.auth.signInWithPassword({ email: row.email, password });
-  if (error && !row.auth_id && row.email === config.bootstrapAdmin.email && (await verifyPassword(password, row.password_hash))) {
+  // Until their first successful sign-in, the first access manager can use
+  // ADMIN_INITIAL_PASSWORD as it is set now (even if it changed since the
+  // database was created) or as it was then.
+  const bootstrapPassword =
+    !row.auth_id &&
+    row.email === config.bootstrapAdmin.email &&
+    ((config.bootstrapAdmin.password !== null && password === config.bootstrapAdmin.password) || (await verifyPassword(password, row.password_hash)));
+  if (error && bootstrapPassword) {
     const created = await adminClient().auth.admin.createUser({ email: row.email, password, email_confirm: true });
     if (created.error) throw new Error(`Supabase couldn't create the first account: ${created.error.message}`);
     ({ data, error } = await sb.auth.signInWithPassword({ email: row.email, password }));

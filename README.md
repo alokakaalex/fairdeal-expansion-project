@@ -136,7 +136,8 @@ database and bucket (below) for real use; the demo then switches off.
 
 **Recommended: one Supabase project** for the database, multi-user sign-in
 (password, email link, optional Google) and private file storage. Step-by-step
-setup, security model and free-plan limits are in
+setup in order, with checks and troubleshooting, is in
+[docs/SETUP_GUIDE.md](docs/SETUP_GUIDE.md); the security model is in
 [docs/SUPABASE_SETUP.md](docs/SUPABASE_SETUP.md). The rest of this section
 covers the alternative stack (Neon + Cloudflare R2), which you can also mix
 in: for example Supabase for sign-in and records with R2 for large videos.

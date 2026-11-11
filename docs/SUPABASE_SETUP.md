@@ -1,5 +1,7 @@
 # Running Expansion OS on Supabase
 
+> **Setting it up?** Follow [SETUP_GUIDE.md](SETUP_GUIDE.md): it covers every step in order, with checks and a troubleshooting table. This page explains how the Supabase pieces fit together.
+
 One Supabase project gives the portal three things:
 
 | What | Supabase feature | Environment variables |

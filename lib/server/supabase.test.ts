@@ -259,6 +259,16 @@ describe("Supabase sign-in", () => {
     expect((await one<{ failed_logins: number }>("SELECT failed_logins FROM users WHERE id = ?", founder.id))!.failed_logins).toBe(1);
   });
 
+  it("accepts the current ADMIN_INITIAL_PASSWORD until the first access manager's first sign-in", async () => {
+    // As if the password in the host's settings had been changed after the database was created.
+    sb.reset();
+    await run("UPDATE users SET auth_id = NULL, password_hash = 'scrypt$old' WHERE id = ?", founder.id);
+    expect((await users.authenticate("founder@fairdeal.test", "Initial-Passw0rd")).id).toBe(founder.id);
+    // Once their Supabase account exists, only Supabase's password counts.
+    await users.changePassword(founder, "Initial-Passw0rd", "Changed-Passw0rd-9");
+    await expect(users.authenticate("founder@fairdeal.test", "Initial-Passw0rd")).rejects.toThrow(/Incorrect/);
+  });
+
   it("invites someone by email link; they choose a password and can then sign in", async () => {
     const { user, link } = await users.inviteUser(founder, { email: "Neha@Fairdeal.test", name: "Neha", role: "finance" });
     expect(link.emailed).toBe(true);
