@@ -2,6 +2,7 @@ import "server-only";
 import { createHmac, timingSafeEqual } from "node:crypto";
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
+import { connection } from "next/server";
 import { cache } from "react";
 import { ROLE_INFO, type Role } from "@/lib/expansion/roles";
 import type { User } from "@/lib/expansion/types";
@@ -80,6 +81,9 @@ export async function endSession() {
 
 /** The signed-in user for this request, or null. */
 export const currentUser = cache(async (): Promise<User | null> => {
+  // Who is signed in is only known per request: never let a page that asks
+  // be prerendered at build time (when the host's settings may be absent).
+  await connection();
   await ensureDemo();
   if (config.authProvider === "supabase") {
     const row = await supabaseAuth.sessionRow<UserRow>();
@@ -119,6 +123,7 @@ export async function requireRole(...roles: Role[]): Promise<User> {
  * they've set a password (status "invited"). Used by the set-password page.
  */
 export async function sessionUserAnyStatus(): Promise<User | null> {
+  await connection();
   if (config.authProvider !== "supabase") return null;
   const row = await supabaseAuth.sessionRow<UserRow>();
   return row && row.status !== "disabled" ? toUser(row) : null;
