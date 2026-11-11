@@ -73,7 +73,8 @@ export const config = {
   bootstrapAdmin: {
     email: process.env.ADMIN_EMAIL?.trim().toLowerCase() || null,
     name: process.env.ADMIN_NAME?.trim() || "Access Manager",
-    password: process.env.ADMIN_INITIAL_PASSWORD || null,
+    // Forgiving of what hosting dashboards often add by accident: surrounding spaces or quotes.
+    password: process.env.ADMIN_INITIAL_PASSWORD?.trim().replace(/^(["'])(.*)\1$/, "$2") || null,
   },
 
   smtp: process.env.SMTP_HOST

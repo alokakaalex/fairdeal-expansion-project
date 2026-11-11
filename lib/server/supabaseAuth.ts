@@ -46,27 +46,66 @@ export async function emailLink(row: AuthRow, purpose: LinkPurpose): Promise<str
   return `${config.appUrl}/auth/confirm?type=${type}&token_hash=${encodeURIComponent(data.properties.hashed_token)}`;
 }
 
+/** A setup problem worth showing as-is on the sign-in page (not "wrong password"). */
+export class AuthSetupError extends Error {}
+
+/** Is this the first access manager (ADMIN_EMAIL), before their first successful sign-in? */
+export function isPendingFirstAdmin(row: AuthRow): boolean {
+  return !row.auth_id && config.bootstrapAdmin.email !== null && row.email.toLowerCase() === config.bootstrapAdmin.email;
+}
+
+async function matchesInitialPassword(row: AuthRow, password: string): Promise<boolean> {
+  const configured = config.bootstrapAdmin.password;
+  if (configured !== null && (password === configured || password.trim() === configured)) return true;
+  return verifyPassword(password, row.password_hash);
+}
+
+/**
+ * Creates (or repairs) the first access manager's Supabase account with
+ * the password they just proved they know. An account left over from an
+ * earlier attempt, or added by hand in Supabase, gets this password and a
+ * confirmed email.
+ */
+async function ensureFirstAdminAccount(email: string, password: string) {
+  const admin = adminClient().auth.admin;
+  const created = await admin.createUser({ email, password, email_confirm: true });
+  if (!created.error) return;
+  if (!/already|exists|registered/i.test(created.error.message)) {
+    throw new AuthSetupError(
+      `Supabase refused to create your account: ${created.error.message}. Check SUPABASE_SERVICE_ROLE_KEY in your host's settings (it must be the secret/service_role key) and Supabase → Authentication → Policies (password rules).`,
+    );
+  }
+  // generateLink returns the existing account without sending anything.
+  const existing = await admin.generateLink({ type: "magiclink", email });
+  if (existing.error || !existing.data.user) {
+    throw new AuthSetupError(`Supabase has an account for ${email} but wouldn't update it: ${existing.error?.message ?? "not found"}.`);
+  }
+  const updated = await admin.updateUserById(existing.data.user.id, { password, email_confirm: true, ban_duration: "none" });
+  if (updated.error) throw new AuthSetupError(`Supabase wouldn't set your password: ${updated.error.message}.`);
+}
+
 /**
  * Checks the password with Supabase and, if right, starts the session
  * (cookies). The first access manager (ADMIN_EMAIL) gets their Supabase
- * account on first sign-in with ADMIN_INITIAL_PASSWORD.
+ * account on their first sign-in with ADMIN_INITIAL_PASSWORD.
  */
 export async function passwordSignIn(row: AuthRow, password: string): Promise<boolean> {
   const sb = await authClient();
   let { data, error } = await sb.auth.signInWithPassword({ email: row.email, password });
-  // Until their first successful sign-in, the first access manager can use
-  // ADMIN_INITIAL_PASSWORD as it is set now (even if it changed since the
-  // database was created) or as it was then.
-  const bootstrapPassword =
-    !row.auth_id &&
-    row.email === config.bootstrapAdmin.email &&
-    ((config.bootstrapAdmin.password !== null && password === config.bootstrapAdmin.password) || (await verifyPassword(password, row.password_hash)));
-  if (error && bootstrapPassword) {
-    const created = await adminClient().auth.admin.createUser({ email: row.email, password, email_confirm: true });
-    if (created.error) throw new Error(`Supabase couldn't create the first account: ${created.error.message}`);
+  if (error && isPendingFirstAdmin(row)) {
+    if (!(await matchesInitialPassword(row, password))) return false;
+    await ensureFirstAdminAccount(row.email, password);
     ({ data, error } = await sb.auth.signInWithPassword({ email: row.email, password }));
+    if (error) {
+      throw new AuthSetupError(
+        `Your account was created in Supabase, but signing in failed: ${error.message}. In Supabase → Authentication → Sign In / Providers, make sure the Email provider is enabled.`,
+      );
+    }
   }
-  if (error || !data.user) return false;
+  if (error || !data.user) {
+    console.warn(`[auth] Supabase refused a sign-in: ${error?.message ?? "no user returned"}`);
+    return false;
+  }
   if (row.auth_id && row.auth_id !== data.user.id) {
     // Same email, different Supabase account: don't let it borrow this person's access.
     await sb.auth.signOut();

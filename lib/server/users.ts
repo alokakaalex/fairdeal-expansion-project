@@ -226,12 +226,25 @@ export async function authenticate(email: string, password: string): Promise<Use
   if (row.status === "invited") throw new UserError("Finish setting up your account using the invite link you were sent.");
 
   // Supabase checks the password and, if it's right, sets the session cookies.
-  const ok = config.authProvider === "supabase" ? await supabaseAuth.passwordSignIn(row, password) : builtinOk;
+  let ok = builtinOk;
+  if (config.authProvider === "supabase") {
+    try {
+      ok = await supabaseAuth.passwordSignIn(row, password);
+    } catch (error) {
+      if (error instanceof supabaseAuth.AuthSetupError) throw new UserError(error.message);
+      throw error;
+    }
+  }
   if (!ok) {
     const failed = row.failed_logins + 1;
     const lockedUntil = failed >= MAX_FAILED ? new Date(Date.now() + LOCK_MINUTES * 60_000).toISOString() : null;
     await run("UPDATE users SET failed_logins = ?, locked_until = ? WHERE id = ?", lockedUntil ? 0 : failed, lockedUntil, row.id);
     if (lockedUntil) await audit({ actorId: null, action: "user.locked", subjectUserId: row.id });
+    if (config.authProvider === "supabase" && supabaseAuth.isPendingFirstAdmin(row)) {
+      throw new UserError(
+        "That isn't the first sign-in password. Use ADMIN_INITIAL_PASSWORD exactly as saved in your host's environment variables (check for extra spaces), and redeploy after changing it.",
+      );
+    }
     throw generic;
   }
 
@@ -352,4 +365,16 @@ export async function setSalesApprover(actor: User, userId: string, approver: bo
 
 export async function salesApproverCount(): Promise<number> {
   return (await one<{ n: number }>("SELECT COUNT(*)::int AS n FROM users WHERE role = 'sales' AND status = 'active' AND sales_approver = 1"))!.n;
+}
+
+/** For /api/health: where the first access manager (ADMIN_EMAIL) stands, without revealing who it is. */
+export async function firstAdminStatus(): Promise<string> {
+  const email = config.bootstrapAdmin.email;
+  if (!email || !config.bootstrapAdmin.password) return "ADMIN_EMAIL or ADMIN_INITIAL_PASSWORD not set";
+  const row = await rowByEmail(email);
+  if (!row) return "not created yet (the database creates it on start; redeploy)";
+  if (row.status !== "active") return `account is ${row.status}`;
+  if (row.locked_until && row.locked_until > now()) return "locked for 15 minutes after 5 failed attempts";
+  if (config.authProvider === "supabase" && !row.auth_id) return "ready for first sign-in with ADMIN_INITIAL_PASSWORD";
+  return row.last_login_at ? "signed in before" : "ready";
 }

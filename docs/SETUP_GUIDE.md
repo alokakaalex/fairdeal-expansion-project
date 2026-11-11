@@ -202,7 +202,7 @@ Open `https://YOUR-PRODUCTION-ADDRESS/api/health`. The first load can take
 
 **Good result:**
 ```json
-{"ok":true,"database":"postgres","configured":{"database":true,"supabaseAuth":true,"storage":"supabase","email":true,"demo":false},"backupStale":true}
+{"ok":true,"database":"postgres","configured":{"database":true,"supabaseAuth":true,"storage":"supabase","email":true,"demo":false},"firstAdmin":"ready for first sign-in with ADMIN_INITIAL_PASSWORD","backupStale":true}
 ```
 (`backupStale: true` is normal until Stage 8.)
 
@@ -300,7 +300,7 @@ in. Anyone else sees "doesn't have access".
 | Vercel shows **404 NOT_FOUND** (black page) | Framework Preset isn't Next.js, or Production Branch isn't `main`. See Stage 0, then redeploy. |
 | **"This page couldn't load / A server error occurred"** | Open `/api/health` (Stage 6) and follow the table there. The full error is in Vercel → **Logs**. |
 | I changed a variable but nothing changed | Redeploy (Stage 5). Variables apply only to new deployments. |
-| **"Incorrect email or password"** for the first admin | Before your first sign-in: check the email matches `ADMIN_EMAIL` exactly and use the current `ADMIN_INITIAL_PASSWORD` (redeploy if you just changed it). After you've signed in once: use the password you chose, or **Forgot your password?** on the sign-in page (needs email, Stage 4). |
+| First admin can't sign in | Open `/api/health` and read `firstAdmin`. **"ready for first sign-in…"**: type `ADMIN_INITIAL_PASSWORD` exactly as saved in Vercel; the sign-in page now says so if it doesn't match. **"not created yet"**: `ADMIN_EMAIL`/`ADMIN_INITIAL_PASSWORD` aren't reaching the app (check Production environment, then redeploy). **"signed in before"**: use the password you chose, or **Forgot your password?** Any message mentioning Supabase or `SUPABASE_SERVICE_ROLE_KEY` means a key is wrong: re-copy it (Stage 2B) and redeploy. |
 | **"Too many failed attempts"** | Wait 15 minutes. |
 | **"Finish setting up your account using the invite link"** | That person hasn't set a password yet. Resend from **People & roles → New invite link**. |
 | Invite link says **already used or expired** | Links work once and expire (Stage 3 sets 24 h). Send a new one from **People & roles**. |

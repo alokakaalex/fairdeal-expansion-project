@@ -1,6 +1,7 @@
 import { backupIsStale } from "@/lib/server/backups";
 import { config } from "@/lib/server/config";
 import { databaseKind, describeDbError } from "@/lib/server/db";
+import { firstAdminStatus } from "@/lib/server/users";
 
 // For the host's health check, uptime monitors and setup troubleshooting.
 // Reveals nothing private: which pieces are configured, and the kind of
@@ -15,7 +16,10 @@ export async function GET() {
   };
   try {
     const database = await databaseKind();
-    return Response.json({ ok: true, database, configured, backupStale: await backupIsStale() }, { headers: { "Cache-Control": "no-store" } });
+    return Response.json(
+      { ok: true, database, configured, firstAdmin: await firstAdminStatus(), backupStale: await backupIsStale() },
+      { headers: { "Cache-Control": "no-store" } },
+    );
   } catch (error) {
     return Response.json({ ok: false, configured, problem: describeDbError(error) }, { status: 503, headers: { "Cache-Control": "no-store" } });
   }

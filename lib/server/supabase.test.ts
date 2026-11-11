@@ -30,7 +30,10 @@ const sb = {
   bucket: null as { public: boolean; file_size_limit: number | null } | null,
   objects: new Map<string, { bytes: Uint8Array; contentType: string }>(),
   uploadUrls: new Map<string, string>(),
+  /** Makes admin.createUser fail, e.g. a wrong service key. */
+  createUserError: null as string | null,
   reset() {
+    this.createUserError = null;
     this.accounts.clear();
     this.session = null;
     this.tokens.clear();
@@ -133,13 +136,16 @@ const authApi = {
       return { data: { user: userOf(a), properties: { hashed_token: token } }, error: null };
     },
     async createUser({ email, password, email_confirm }: { email: string; password: string; email_confirm: boolean }) {
-      if (byEmail(email)) return fail("already registered");
+      if (sb.createUserError) return fail(sb.createUserError);
+      if (byEmail(email)) return fail("A user with this email address has already been registered");
       return { data: { user: userOf(newAccount(email, password, email_confirm)) }, error: null };
     },
-    async updateUserById(id: string, { ban_duration }: { ban_duration: string }) {
+    async updateUserById(id: string, changes: { ban_duration?: string; password?: string; email_confirm?: boolean }) {
       const a = sb.accounts.get(id);
       if (!a) return fail("User not found");
-      a.banned = ban_duration !== "none";
+      if (changes.ban_duration !== undefined) a.banned = changes.ban_duration !== "none";
+      if (changes.password !== undefined) a.password = changes.password;
+      if (changes.email_confirm) a.confirmed = true;
       return { data: { user: userOf(a) }, error: null };
     },
   },
@@ -267,6 +273,30 @@ describe("Supabase sign-in", () => {
     // Once their Supabase account exists, only Supabase's password counts.
     await users.changePassword(founder, "Initial-Passw0rd", "Changed-Passw0rd-9");
     await expect(users.authenticate("founder@fairdeal.test", "Initial-Passw0rd")).rejects.toThrow(/Incorrect/);
+  });
+
+  it("repairs a Supabase account left over from an earlier attempt for the first access manager", async () => {
+    sb.reset();
+    await run("UPDATE users SET auth_id = NULL WHERE id = ?", founder.id);
+    const leftover = newAccount("founder@fairdeal.test", "something-else-1", false);
+    leftover.banned = true;
+    expect((await users.authenticate("founder@fairdeal.test", "Initial-Passw0rd")).id).toBe(founder.id);
+    expect(leftover).toMatchObject({ password: "Initial-Passw0rd", confirmed: true, banned: false });
+    expect((await one<{ auth_id: string }>("SELECT auth_id FROM users WHERE id = ?", founder.id))!.auth_id).toBe(leftover.id);
+  });
+
+  it("explains first sign-in problems instead of saying 'wrong password'", async () => {
+    sb.reset();
+    await run("UPDATE users SET auth_id = NULL, failed_logins = 0 WHERE id = ?", founder.id);
+    const { firstAdminStatus } = users;
+    expect(await firstAdminStatus()).toMatch(/ready for first sign-in/);
+    await expect(users.authenticate("founder@fairdeal.test", "not-the-initial-1")).rejects.toThrow(/ADMIN_INITIAL_PASSWORD exactly as saved/);
+    sb.createUserError = "User not allowed";
+    await expect(users.authenticate("founder@fairdeal.test", "Initial-Passw0rd")).rejects.toThrow(/SUPABASE_SERVICE_ROLE_KEY/);
+    sb.createUserError = null;
+    // Typed with a stray space: still recognised.
+    expect((await users.authenticate("founder@fairdeal.test", " Initial-Passw0rd ")).id).toBe(founder.id);
+    expect(await firstAdminStatus()).toBe("signed in before");
   });
 
   it("invites someone by email link; they choose a password and can then sign in", async () => {
