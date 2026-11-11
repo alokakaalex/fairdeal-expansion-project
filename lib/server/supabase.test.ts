@@ -173,6 +173,9 @@ vi.mock("./supabase", () => ({
   }),
 }));
 
+// Outside a real request there's nothing to wait for (the app uses this to stay out of build-time prerendering).
+vi.mock("next/server", async (importOriginal) => ({ ...(await importOriginal<typeof import("next/server")>()), connection: async () => {} }));
+
 const sent: { to: string; subject: string; text: string }[] = [];
 vi.mock("./mailer", () => ({
   emailEnabled: () => true,
