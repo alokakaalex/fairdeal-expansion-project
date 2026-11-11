@@ -295,12 +295,38 @@ const PARSERS: Record<number, (v: string) => unknown> = {
 };
 for (const [oid, parse] of Object.entries(PARSERS)) pg.types.setTypeParser(Number(oid), parse);
 
+/**
+ * The connection string without its SSL parameters, plus the TLS settings
+ * to use. node-postgres lets `sslmode` in the URL override the options
+ * passed alongside it, and treats `sslmode=require` as full certificate
+ * verification — which fails against Supabase's pooler (its certificate
+ * chains to Supabase's own CA), so every query would error. Here
+ * "require"/"prefer"/none mean encrypted without verifying the CA (what
+ * libpq does), "verify-full" verifies, and "disable" or a local host
+ * means no TLS.
+ */
+export function connectionOptions(url: string): { connectionString: string; ssl: false | { rejectUnauthorized: boolean } } {
+  let mode: string | null = null;
+  let connectionString = url;
+  try {
+    const u = new URL(url);
+    mode = u.searchParams.get("sslmode");
+    for (const p of ["sslmode", "sslrootcert", "sslcert", "sslkey", "uselibpqcompat", "ssl"]) u.searchParams.delete(p);
+    connectionString = u.toString();
+    if (mode === "disable" || ["localhost", "127.0.0.1", "::1", "[::1]"].includes(u.hostname)) return { connectionString, ssl: false };
+  } catch {
+    // Not a URL pg's own parser can't handle either; pass it through.
+  }
+  return { connectionString, ssl: { rejectUnauthorized: mode === "verify-full" } };
+}
+
 function postgresDriver(url: string): Driver {
   const pool = new pg.Pool({
-    connectionString: url,
+    ...connectionOptions(url),
     max: Number(process.env.DATABASE_POOL_SIZE) || 5,
-    ssl: /sslmode=disable|localhost|127\.0\.0\.1/.test(url) ? undefined : { rejectUnauthorized: false },
   });
+  // An idle connection dropped by the pooler shouldn't crash the server.
+  pool.on("error", (error) => console.error("[db] idle connection error", error.message));
   const run = async (c: pg.Pool | pg.PoolClient, sql: string, params: unknown[]) => {
     const r = await c.query(sql, params);
     return { rows: r.rows, rowCount: r.rowCount ?? 0 };
@@ -411,6 +437,7 @@ async function bootstrapAdmin(driver: Driver) {
 function driver(): Promise<Driver> {
   globalForDb.__expansionDb ??= open().catch((error) => {
     globalForDb.__expansionDb = undefined;
+    console.error("[db] could not open the database:", error);
     throw error;
   });
   return globalForDb.__expansionDb;
@@ -525,4 +552,22 @@ export async function resetDbForTests() {
 
 export function now(): string {
   return new Date().toISOString();
+}
+
+/**
+ * What kind of problem stopped the database from opening, in words safe to
+ * show anyone (no hosts, users or passwords). For /api/health.
+ */
+export function describeDbError(error: unknown): string {
+  const e = error as { message?: string; code?: string };
+  const m = `${e?.code ?? ""} ${e?.message ?? ""}`;
+  if (/certificate|SELF_SIGNED|UNABLE_TO_VERIFY|CERT_/i.test(m)) return "ssl: the database's certificate was rejected";
+  if (/password authentication failed|28P01|SASL|28000/i.test(m)) return "auth: wrong database user or password in DATABASE_URL";
+  if (/ENOTFOUND|EAI_AGAIN|getaddrinfo/i.test(m)) return "network: the database host in DATABASE_URL wasn't found";
+  if (/ECONNREFUSED|ETIMEDOUT|timeout|ECONNRESET/i.test(m)) return "network: couldn't reach the database (paused project, wrong port, or firewall)";
+  if (/Tenant or user not found|XX000/i.test(m)) return "auth: the pooler doesn't recognise the user — copy DATABASE_URL again from Supabase → Connect";
+  if (/Invalid URL|connection string/i.test(m)) return "config: DATABASE_URL isn't a valid connection string (special characters in the password must be URL-encoded)";
+  if (/no lasting disk/.test(m)) return "config: DATABASE_URL isn't set";
+  if (/permission denied|must be owner|42501/i.test(m)) return "setup: the database user lacks a permission the setup needs";
+  return "other: see the deployment's logs for the full error";
 }
