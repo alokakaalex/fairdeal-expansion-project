@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { matchesSignature } from "@/lib/server/files";
-import { mapOpenUrl, parseCoordinates, safeHttpUrl } from "./maps";
+import { isShortMapLink, mapEmbedUrl, mapOpenUrl, parseCoordinates, placeFromMapUrl, safeHttpUrl } from "./maps";
 
 describe("parseCoordinates", () => {
   it.each([
@@ -38,5 +38,28 @@ describe("upload signatures", () => {
     expect(matchesSignature("image/svg+xml", bytes("<svg"))).toBe(false);
     expect(matchesSignature("application/pdf", bytes("%PDF-1.4"))).toBe(true);
     expect(matchesSignature("application/pdf", bytes("<html>"))).toBe(false);
+  });
+});
+
+describe("Google Maps links from the app", () => {
+  it.each([
+    ["https://www.google.com/maps/search/28.537512,+77.290512?entry=tts", [28.537512, 77.290512]],
+    ["https://www.google.com/maps/place/28%C2%B032'15.0%22N+77%C2%B017'25.8%22E/@28.5375,77.2905,17z/data=!4m4!3m3!8m2!3d28.537512!4d77.290512", [28.537512, 77.290512]],
+    ["https://www.google.com/maps/dir//28.5375,77.2905", [28.5375, 77.2905]],
+  ])("reads the pin from %s", (input, [lat, lng]) => {
+    expect(parseCoordinates(input)).toEqual({ latitude: lat, longitude: lng });
+  });
+
+  it("recognises share links that must be followed", () => {
+    expect(isShortMapLink("https://maps.app.goo.gl/AbC123xyz")).toBe(true);
+    expect(isShortMapLink("https://goo.gl/maps/AbC123")).toBe(true);
+    expect(isShortMapLink("https://www.google.com/maps/@28.5,77.2,17z")).toBe(false);
+  });
+
+  it("uses the place a link names before the typed area", () => {
+    const place = placeFromMapUrl("https://www.google.com/maps/place/Jasola+Apollo+Metro+Station,+New+Delhi/data=!4m2");
+    expect(place).toBe("Jasola Apollo Metro Station, New Delhi");
+    expect(mapEmbedUrl("Jasola", null, place)).toContain(encodeURIComponent("Jasola Apollo Metro Station"));
+    expect(mapEmbedUrl("Jasola", { latitude: 28.5375, longitude: 77.2905 }, place)).toContain("q=28.5375%2C77.2905");
   });
 });

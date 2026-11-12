@@ -1,4 +1,4 @@
-import { mapEmbedUrl, mapOpenUrl } from "@/lib/expansion/maps";
+import { mapEmbedUrl, mapOpenUrl, placeFromMapUrl } from "@/lib/expansion/maps";
 import type { PropertyView } from "@/lib/expansion/types";
 
 export default function MapEmbed({ property }: { property: PropertyView }) {
@@ -6,7 +6,7 @@ export default function MapEmbed({ property }: { property: PropertyView }) {
     property.latitude != null && property.longitude != null
       ? { latitude: property.latitude, longitude: property.longitude }
       : null;
-  const embed = mapEmbedUrl(property.address ?? "", coords);
+  const embed = mapEmbedUrl(property.address ?? "", coords, placeFromMapUrl(property.mapUrl));
   const open = mapOpenUrl(property.mapUrl, property.address ?? "", coords);
   return (
     <div className="space-y-2">
@@ -27,7 +27,8 @@ export default function MapEmbed({ property }: { property: PropertyView }) {
       ) : null}
       {!coords && property.mapUrl ? (
         <p className="text-xs text-slate-500">
-          The embedded map is based on the address; the Google Maps link above has the exact pin.
+          The exact pin couldn&apos;t be read from this link, so the map shows the named place or address. &ldquo;Open in Google Maps&rdquo; has the
+          exact spot; for a precise map, paste the full Google Maps link or the coordinates (e.g. 28.5375, 77.2905).
         </p>
       ) : null}
     </div>

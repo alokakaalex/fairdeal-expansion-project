@@ -35,7 +35,8 @@ import {
 import { propertyAudit } from "@/lib/server/audit";
 import { acceptAttribute, uploadPermissions } from "@/lib/server/files";
 import { documentsChecklist } from "@/lib/server/pipeline";
-import { getProperty, propertyRow, type PropertyRow } from "@/lib/server/properties";
+import { fillCoordinatesFromLink, getProperty, propertyRow, type PropertyRow } from "@/lib/server/properties";
+import { isShortMapLink } from "@/lib/expansion/maps";
 import { requireUser } from "@/lib/server/session";
 
 export const metadata: Metadata = { title: "Property" };
@@ -484,6 +485,11 @@ export default async function PropertyPage(props: PageProps<"/properties/[id]">)
   const q = await props.searchParams;
   const [p, row] = await Promise.all([getProperty(user, Number(id)), propertyRow(Number(id))]);
   if (!p || !row) notFound();
+  // Older entries saved with a short Google Maps share link: find the exact pin once.
+  if (p.mapUrl && p.latitude == null && isShortMapLink(p.mapUrl)) {
+    const coords = await fillCoordinatesFromLink(p.id, p.mapUrl);
+    if (coords) Object.assign(p, coords);
+  }
   const seesAudit = ["admin", "expansion_manager", "founder"].includes(user.role);
   const [perms, missing, activity] = await Promise.all([
     uploadPermissions(user, row),

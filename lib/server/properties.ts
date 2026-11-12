@@ -1,4 +1,5 @@
 import "server-only";
+import { coordinatesFromMapLink } from "./mapLinks";
 import { formatNumber, propertyCode } from "@/lib/expansion/format";
 import type { PropertyInput } from "@/lib/expansion/propertyInput";
 import type { Role } from "@/lib/expansion/roles";
@@ -581,3 +582,14 @@ export async function submitProperty(viewer: User, id: number) {
   });
 }
 
+
+/**
+ * Fills in a property's pin from its Google Maps short link, for properties
+ * saved before links were resolved on save. Only ever fills empty
+ * coordinates; returns them if found.
+ */
+export async function fillCoordinatesFromLink(id: number, mapUrl: string | null): Promise<{ latitude: number; longitude: number } | null> {
+  const coords = await coordinatesFromMapLink(mapUrl);
+  if (coords) await run("UPDATE properties SET latitude = ?, longitude = ? WHERE id = ? AND latitude IS NULL", coords.latitude, coords.longitude, id);
+  return coords;
+}

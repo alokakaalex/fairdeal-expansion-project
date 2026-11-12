@@ -1,12 +1,41 @@
 "use client";
 
-import { startTransition, useActionState } from "react";
+import { startTransition, useActionState, useState } from "react";
 import { saveProperty, type ActionState } from "@/app/actions/pipeline";
 import { STRUCTURE_LABEL, STRUCTURE_TYPES, type PropertyInput } from "@/lib/expansion/propertyInput";
 import type { PropertyView } from "@/lib/expansion/types";
 import { Alert, buttonClass, inputClass } from "./ui";
 
 type Name = keyof PropertyInput;
+
+/** Fills the map field with this device's GPS position — for when the scout is standing at the site. */
+function UseMyLocation() {
+  const [status, setStatus] = useState<string | null>(null);
+  return (
+    <span className="flex flex-wrap items-center gap-2">
+      <button
+        type="button"
+        className={`${buttonClass.secondary} px-3 py-1.5 text-xs`}
+        onClick={() => {
+          if (!navigator.geolocation) return setStatus("This device can't share its location.");
+          setStatus("Finding your location…");
+          navigator.geolocation.getCurrentPosition(
+            (pos) => {
+              const field = document.getElementById("mapUrl") as HTMLInputElement | null;
+              if (field) field.value = `${pos.coords.latitude.toFixed(6)}, ${pos.coords.longitude.toFixed(6)}`;
+              setStatus(`Location set (accurate to about ${Math.round(pos.coords.accuracy)} m).`);
+            },
+            (err) => setStatus(err.code === err.PERMISSION_DENIED ? "Location permission was denied — allow it in the browser to use this." : "Couldn't get your location. Try again outdoors."),
+            { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 },
+          );
+        }}
+      >
+        Use my current location
+      </button>
+      {status ? <span className="text-xs text-slate-500">{status}</span> : null}
+    </span>
+  );
+}
 
 function Field({
   name,
@@ -97,11 +126,12 @@ export default function PropertyForm({ property }: { property?: PropertyView }) 
         <Field
           name="mapUrl"
           label="Google Maps link"
-          hint="Paste the Google Maps share link, or coordinates like 28.7041, 77.1025."
+          hint="In Google Maps, drop a pin on the exact building, tap Share and paste the link here. Or, standing at the site, use your current location."
           error={errors.mapUrl}
           className="sm:col-span-2"
         >
-          {input("mapUrl", { maxLength: 2000, placeholder: "https://maps.app.goo.gl/…" })}
+          {input("mapUrl", { maxLength: 2000, placeholder: "https://maps.app.goo.gl/…  or  28.5375, 77.2905" })}
+          <UseMyLocation />
         </Field>
       </fieldset>
 

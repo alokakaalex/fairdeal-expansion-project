@@ -12,6 +12,7 @@ import {
 import type { Decision } from "@/lib/expansion/workflow";
 import { archiveFile } from "@/lib/server/files";
 import { markRead } from "@/lib/server/notifications";
+import { resolveMapLink } from "@/lib/server/mapLinks";
 import * as pipeline from "@/lib/server/pipeline";
 import { createProperty, PropertyError, submitProperty, updateProperty } from "@/lib/server/properties";
 import { requireUser } from "@/lib/server/session";
@@ -63,13 +64,21 @@ export async function saveProperty(_: ActionState, formData: FormData): Promise<
   const user = await requireUser();
   const parsed = parsePropertyInput(formData);
   if (!parsed.ok) return { error: "Please fix the highlighted fields.", fieldErrors: parsed.errors };
+  // A share link from the Google Maps app has no coordinates until followed.
+  const input = { ...parsed.value };
+  if (input.latitude == null && input.mapUrl) {
+    const resolved = await resolveMapLink(input.mapUrl);
+    if (resolved.coordinates) Object.assign(input, resolved.coordinates);
+    // No pin but a named place: keep the full link, so the map can show that place rather than the area.
+    else if (resolved.fullUrl && resolved.fullUrl.length <= 2000) input.mapUrl = resolved.fullUrl;
+  }
   const existing = idOf(formData);
   let id: number;
   try {
     if (existing) {
-      await updateProperty(user, existing, parsed.value);
+      await updateProperty(user, existing, input);
       id = existing;
-    } else id = await createProperty(user, parsed.value);
+    } else id = await createProperty(user, input);
   } catch (error) {
     if (error instanceof PropertyError) return { error: error.message };
     throw error;

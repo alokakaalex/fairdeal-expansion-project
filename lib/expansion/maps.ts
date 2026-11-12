@@ -13,7 +13,8 @@ function valid(lat: number, lng: number): Coordinates | null {
   return { latitude: lat, longitude: lng };
 }
 
-const PAIR = String.raw`(-?\d{1,3}(?:\.\d+)?)\s*,\s*(-?\d{1,3}(?:\.\d+)?)`;
+// "28.56, 77.29" — Google also writes "28.56,+77.29".
+const PAIR = String.raw`\+?(-?\d{1,3}(?:\.\d+)?)\s*,\s*\+?(-?\d{1,3}(?:\.\d+)?)`;
 
 export function parseCoordinates(input: string): Coordinates | null {
   const text = input.trim();
@@ -37,11 +38,40 @@ export function parseCoordinates(input: string): Coordinates | null {
   const param = decoded.match(new RegExp(`[?&](?:q|ll|query|destination|center)=${PAIR}`));
   if (param) return valid(Number(param[1]), Number(param[2]));
 
-  // .../@lat,lng,15z
+  // .../maps/search/lat,lng  .../maps/place/lat,lng  .../maps/dir//lat,lng
+  const path = decoded.match(new RegExp(`/maps/(?:search|place|dir/[^/]*)/${PAIR}`));
+  if (path) return valid(Number(path[1]), Number(path[2]));
+
+  // .../@lat,lng,15z (the map's centre — close to the pin, used last)
   const at = decoded.match(new RegExp(`@${PAIR}`));
   if (at) return valid(Number(at[1]), Number(at[2]));
 
   return null;
+}
+
+/** Share links from the Google Maps app (maps.app.goo.gl/…, goo.gl/maps/…) carry no coordinates until followed. */
+export function isShortMapLink(input: string | null | undefined): boolean {
+  return /^https?:\/\/(maps\.app\.goo\.gl|goo\.gl\/maps|g\.co\/kgs)\//i.test((input ?? "").trim());
+}
+
+/**
+ * The place a Google Maps link points at, when it names one but has no
+ * coordinates: "/maps/place/<name>/…" or "?q=<text>". Better for the
+ * embedded map than the typed address, which may only name the area.
+ */
+export function placeFromMapUrl(input: string | null | undefined): string | null {
+  const url = safeHttpUrl(input ?? "");
+  if (!url) return null;
+  const u = new URL(url);
+  if (!/(^|\.)google\.[a-z.]+$/i.test(u.hostname)) return null;
+  const place = u.pathname.match(/\/maps\/place\/([^/]+)/);
+  const text = place ? place[1] : (u.searchParams.get("q") ?? u.searchParams.get("query"));
+  if (!text) return null;
+  try {
+    return decodeURIComponent(text.replace(/\+/g, " ")).trim() || null;
+  } catch {
+    return text.replace(/\+/g, " ").trim() || null;
+  }
 }
 
 /** Accept only http(s) links so a pasted value can never become a javascript: URL. */
@@ -54,14 +84,15 @@ export function safeHttpUrl(input: string): string | null {
   }
 }
 
-function query(address: string, coords: Coordinates | null): string {
-  return coords ? `${coords.latitude},${coords.longitude}` : address;
+function query(address: string, coords: Coordinates | null, place?: string | null): string {
+  return coords ? `${coords.latitude},${coords.longitude}` : place || address;
 }
 
-export function mapEmbedUrl(address: string, coords: Coordinates | null): string | null {
-  const q = query(address, coords);
+/** Embedded map: the exact pin when known, else the place the link names, else the typed address. */
+export function mapEmbedUrl(address: string, coords: Coordinates | null, place?: string | null): string | null {
+  const q = query(address, coords, place);
   if (!q.trim()) return null;
-  return `https://maps.google.com/maps?q=${encodeURIComponent(q)}&z=16&output=embed`;
+  return `https://maps.google.com/maps?q=${encodeURIComponent(q)}&z=${coords ? 17 : 16}&output=embed`;
 }
 
 export function mapOpenUrl(mapUrl: string | null, address: string, coords: Coordinates | null): string | null {
