@@ -22,6 +22,9 @@ const PATHS = {
   user: "M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2m8-10a4 4 0 1 0 0-8 4 4 0 0 0 0 8Z",
   upload: "M12 16V4m0 0-4 4m4-4 4 4M4 16v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2",
   file: "M14 3H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9l-6-6Zm0 0v6h6",
+  flag: "M5 21V4m0 0h12l-2.5 4.5L17 13H5",
+  signature: "M3 17c3-1 4-6 6-6s-1 7 2 7 3-5 5-5 1 4 3 4h2M3 21h18",
+  handshake: "M8 11l3-3a2.5 2.5 0 0 1 3.5 0L20 13.5M4 12l5 5a1.6 1.6 0 0 0 2.3 0l.7-.7M2 9l3-3 3 3M22 9l-3-3-4 4M12 14l2 2",
 } as const;
 
 export type IconName = keyof typeof PATHS;

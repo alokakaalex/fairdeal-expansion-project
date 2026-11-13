@@ -1,11 +1,12 @@
 import Link from "next/link";
 import { formatINR, formatNumber } from "@/lib/expansion/format";
 import type { User } from "@/lib/expansion/types";
-import { isStage, STAGE_INFO, STAGES, type PropertyState } from "@/lib/expansion/workflow";
+import { isStage, STAGE_INFO, type PropertyState } from "@/lib/expansion/workflow";
 import { actionQueue, dashboardStats, listProperties, type ListFilter } from "@/lib/server/properties";
 import { Icon, type IconName } from "./Icons";
+import PipelineRoadmap from "./PipelineRoadmap";
 import PropertyTable from "./PropertyTable";
-import { buttonClass, Card, inputClass, PageHeader } from "./ui";
+import { buttonClass, inputClass, PageHeader } from "./ui";
 
 const STATES: PropertyState[] = ["active", "on_hold", "rejected", "completed", "draft"];
 const STATE_LABEL: Record<PropertyState, string> = {
@@ -73,7 +74,6 @@ export default async function Dashboard({
       active ? "bg-navy-800 text-white" : "bg-white text-navy-700 ring-1 ring-slate-200 hover:ring-brand-300"
     }`;
   const inProgress = (stats.byState.active ?? 0) + (stats.byState.on_hold ?? 0);
-  const maxStage = Math.max(1, ...STAGES.map((s) => stats.byStage[s] ?? 0));
 
   return (
     <>
@@ -97,34 +97,13 @@ export default async function Dashboard({
         <Stat label="Stamp duty" value={formatINR(stats.paid.stamp_duty)} sub={`${stats.stampDutyRequested} pending`} icon="file" tone="brand" />
       </div>
 
-      <Card title="Pipeline at a glance">
-        <ol className="grid grid-cols-2 gap-2 sm:grid-cols-4 lg:grid-cols-11">
-          {STAGES.map((s, i) => {
-            const n = stats.byStage[s] ?? 0;
-            const on = filter.kind === "stage" && filter.stage === s;
-            return (
-              <li key={s}>
-                <Link
-                  href={href({ stage: s })}
-                  className={`flex h-full flex-col justify-between rounded-xl border p-2.5 transition ${on ? "border-brand-400 bg-brand-50" : "border-slate-200 hover:border-brand-300"}`}
-                >
-                  <span className="text-[0.68rem] font-semibold leading-tight text-slate-500">
-                    {i + 1}. {STAGE_INFO[s].label}
-                  </span>
-                  <span className="mt-2 flex items-end justify-between gap-1">
-                    <span className="text-xl font-semibold tabular-nums text-navy-900" style={{ fontFamily: "var(--font-display)" }}>
-                      {n}
-                    </span>
-                    <span className="mb-1 h-1.5 flex-1 overflow-hidden rounded-full bg-slate-100">
-                      <span className="block h-full rounded-full bg-brand-400" style={{ width: `${(n / maxStage) * 100}%` }} />
-                    </span>
-                  </span>
-                </Link>
-              </li>
-            );
-          })}
-        </ol>
-      </Card>
+      <PipelineRoadmap
+        byStage={stats.byStage}
+        drafts={stats.byState.draft ?? 0}
+        completed={stats.byState.completed ?? 0}
+        selected={filter.kind === "stage" ? filter.stage : null}
+        href={(s) => href({ stage: s })}
+      />
 
       {mine.length > 0 ? (
         <section className="space-y-3">
